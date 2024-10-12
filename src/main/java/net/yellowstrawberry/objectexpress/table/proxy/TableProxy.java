@@ -1,12 +1,13 @@
 package net.yellowstrawberry.objectexpress.table.proxy;
 
 import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
 public class TableProxy implements InvocationHandler {
 
-    private Object proxiee;
+    private final Object proxiee;
 
     public TableProxy(Object proxiee){
         this.proxiee = proxiee;
@@ -22,7 +23,13 @@ public class TableProxy implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) {
-        System.out.println(method.getName());
+        try {
+            return proxiee.getClass().getDeclaredMethod(method.getName(), method.getParameterTypes()).invoke(proxiee, args);
+        } catch (NoSuchMethodException e) {
+            System.out.println(method.getName());
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
         return null;
     }
 }

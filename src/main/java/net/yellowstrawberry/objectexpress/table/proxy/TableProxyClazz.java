@@ -21,13 +21,13 @@ public class TableProxyClazz<ID, T> implements Table<ID, T> {
     private final String tableName;
     private final ObjectExpress express;
     private Class<T> tClazz;
+    private String idField;
     public TableProxyClazz(ObjectExpress express, Class<?> interfaze) {
-        this.tableName = express.isSnake()?StringUtils.camelToSnake(interfaze.getName().replaceAll("Table", "")):interfaze.getName().replaceAll("Table", "");
+        String tbn = interfaze.getName().endsWith("Table")?interfaze.getName().substring(0, interfaze.getName().length()-5):interfaze.getName();
+        this.tableName = express.isSnake()?StringUtils.camelToSnake(tbn):tbn;
         this.express = express;
-        System.out.println(Arrays.toString(interfaze.getGenericInterfaces()));
-        System.out.println(interfaze.getGenericInterfaces()[0].getClass().getGenericInterfaces()[0]);
-        System.out.println();
         tClazz = (Class<T>) ((ParameterizedType) interfaze.getGenericInterfaces()[0]).getActualTypeArguments()[1];
+        idField = Arrays.stream(tClazz.getDeclaredFields()).filter(f->f.isAnnotationPresent(Id.class)).findFirst().orElseThrow().getName();
     }
 
     @Override
@@ -43,7 +43,7 @@ public class TableProxyClazz<ID, T> implements Table<ID, T> {
             return Optional.of(c.get());
         }
 
-        return loadFromSQL("SELECT * FROM `%s` WHERE `id`=? LIMIT 1;".formatted(tableName), id).stream().findAny();
+        return loadFromSQL("SELECT * FROM `%s` WHERE `%s`=? LIMIT 1;".formatted(tableName, idField), id).stream().findAny();
     }
 
     @Override
@@ -77,10 +77,11 @@ public class TableProxyClazz<ID, T> implements Table<ID, T> {
                     if(f.isAnnotationPresent(Transit.class)) continue;
                     Object o = set.getObject(express.isSnake()? StringUtils.camelToSnake(f.getName()):f.getName());
                     if(f.isAnnotationPresent(Id.class)) id = (ID) o;
+                    f.setAccessible(true);
                     f.set(t, o);
                 }
 
-                if(id == null) throw new RuntimeException("@Id does not found in '%s'(has @Entity in present) Object.".formatted(t.getClass().getName()));
+                if(id == null) throw new RuntimeException("Database did not returned ID.");
                 data.put(id, ObjectCache.of(t, System.currentTimeMillis()));
                 l.add(t);
             }
@@ -97,5 +98,20 @@ public class TableProxyClazz<ID, T> implements Table<ID, T> {
         } catch (NoSuchMethodException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public String toString() {
+        return super.toString();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
     }
 }

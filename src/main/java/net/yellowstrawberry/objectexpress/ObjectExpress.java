@@ -4,19 +4,19 @@ import net.yellowstrawberry.objectexpress.table.Table;
 import net.yellowstrawberry.objectexpress.table.proxy.TableProxy;
 import net.yellowstrawberry.objectexpress.table.proxy.TableProxyClazz;
 import net.yellowstrawberry.objectexpress.util.SQLCommunicator;
-import net.yellowstrawberry.objectexpress.util.StringUtils;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.Arrays;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class ObjectExpress {
     private final SQLCommunicator sql;
     private final String targetPackage;
     private final boolean isSnake;
+
+    private final HashMap<Class<?>, Table<?,?>> proxies = new HashMap<>();
 
     public ObjectExpress(String url, String db, String user, String password, String targetPackage) {
         this(url, db, user, password, targetPackage, true);
@@ -31,22 +31,32 @@ public class ObjectExpress {
             String targetPackage,
             boolean isSnake
     ) {
-        sql = null;
-//        sql = new SQLCommunicator(url, db, user, password);
+        sql = new SQLCommunicator(url, user, password, db);
         this.targetPackage = targetPackage;
         this.isSnake = isSnake;
 
-        registerTables();
+        findTables();
     }
 
-    private void registerTables() {
-        a();
+    public void registerTables(Object o) {
+        Arrays.stream(o.getClass().getDeclaredFields())
+                .filter(f -> Arrays.stream(f.getType().getInterfaces()).anyMatch(p->p.isAssignableFrom(Table.class)))
+                .forEach(e -> {
+                    if(proxies.containsKey(e.getType())) {
+                        e.setAccessible(true);
+                        try {
+                            e.set(o, proxies.get(e.getType()));
+                        } catch (IllegalAccessException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    }
+                });
     }
 
-    private void a() {
+    private void findTables() {
         findAllClasses().forEach(e -> {
-            if(e.isInterface() && Arrays.asList(e.getInterfaces()).contains(Table.class) && !e.equals(Table.class)) {
-                ((Table<?,?>) TableProxy.as(e, new TableProxyClazz<>(this, e))).findAll();
+            if(Arrays.asList(e.getInterfaces()).contains(Table.class) && !e.equals(Table.class)) {
+                proxies.put(e, (Table<?, ?>) TableProxy.as(e, new TableProxyClazz<>(this, e)));
             }
         });
     }
@@ -64,6 +74,7 @@ public class ObjectExpress {
                         throw new RuntimeException(e);
                     }
                 })
+                .filter(Class::isInterface)
                 .collect(Collectors.toSet());
     }
 
