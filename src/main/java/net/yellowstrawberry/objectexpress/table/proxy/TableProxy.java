@@ -6,7 +6,7 @@ import java.lang.reflect.Proxy;
 
 public class TableProxy implements InvocationHandler {
 
-    private Object proxiee = null;
+    private Object proxiee;
 
     public TableProxy(Object proxiee){
         this.proxiee = proxiee;

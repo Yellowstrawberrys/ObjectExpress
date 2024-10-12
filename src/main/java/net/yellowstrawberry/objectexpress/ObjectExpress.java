@@ -4,12 +4,12 @@ import net.yellowstrawberry.objectexpress.table.Table;
 import net.yellowstrawberry.objectexpress.table.proxy.TableProxy;
 import net.yellowstrawberry.objectexpress.table.proxy.TableProxyClazz;
 import net.yellowstrawberry.objectexpress.util.SQLCommunicator;
+import net.yellowstrawberry.objectexpress.util.StringUtils;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
-import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -46,7 +46,7 @@ public class ObjectExpress {
     private void a() {
         findAllClasses().forEach(e -> {
             if(e.isInterface() && Arrays.asList(e.getInterfaces()).contains(Table.class) && !e.equals(Table.class)) {
-                ((Table<?,?>) TableProxy.as(e, new TableProxyClazz())).findAll();
+                ((Table<?,?>) TableProxy.as(e, new TableProxyClazz<>(this, e))).findAll();
             }
         });
     }
@@ -65,6 +65,10 @@ public class ObjectExpress {
                     }
                 })
                 .collect(Collectors.toSet());
+    }
+
+    public boolean isSnake() {
+        return isSnake;
     }
 
     public SQLCommunicator getCommunicator() {
