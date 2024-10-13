@@ -1,20 +1,57 @@
 plugins {
     id 'java-library'
+    id 'signing'
+    id 'maven-publish'
 }
 
 group = 'net.yellowstrawberry'
-version = '1.0-SNAPSHOT'
+version = '0.0.1-SNAPSHOT'
+description = 'ObjectExpress'
+java.sourceCompatibility = JavaVersion.VERSION_17
 
 repositories {
+    mavenLocal()
     mavenCentral()
 }
 
 dependencies {
-    implementation 'org.mariadb.jdbc:mariadb-java-client:3.1.4'
+    api 'org.mariadb.jdbc:mariadb-java-client:3.1.4'
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
 
 test {
     useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'ObjectExpress'
+                packaging = 'jar'
+                description = 'A Library that saves Object to DB'
+                licenses {
+                    license {
+                        name = 'The MIT License'
+                        url = 'https://raw.githubusercontent.com/Yellowstrawberrys/ObjectExpress/main/LICENCE'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'Yellowstrawberrys'
+                        name = 'Yellowstrawberry'
+                        email = 'eunsoo3009@hotmail.com'
+                    }
+                }
+            }
+            from(components.java)
+        }
+    }
+}
+
+compileJava.options.encoding = 'UTF-8'
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
 }
