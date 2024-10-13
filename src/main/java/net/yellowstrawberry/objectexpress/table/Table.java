@@ -8,5 +8,5 @@ public interface Table<ID, T> {
     Optional<T> findById(ID id);
     T save(T t);
     void delete(T t);
-    T removeById(ID id);
+    void removeById(ID id);
 }

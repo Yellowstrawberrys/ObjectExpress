@@ -27,7 +27,7 @@ public class SQLCommunicator {
      * @param statement an SQL statement that may contain one or more '?' IN parameter placeholders
      * @param values values that can replace ? IN statement
      * */
-    public void executeN(String statement, Object... values) {
+    public void execute(String statement, Object... values) {
         try (PreparedStatement stmt = getConnection().prepareStatement(statement)){
             for(int i = 0; i< values.length; i++) {
                 stmt.setObject(1+i, values[i]);
@@ -39,7 +39,7 @@ public class SQLCommunicator {
                     throw new RuntimeException(e);
                 }else {
                     connect();
-                    executeN(statement, values);
+                    execute(statement, values);
                 }
             } catch (SQLException ex) {
                 throw new RuntimeException(ex);
@@ -54,13 +54,38 @@ public class SQLCommunicator {
      * @return a ResultSet object that contains the data produced by the query; never null
      * @throws SQLException if a database access error occurs; this method is called on a closed PreparedStatement or the SQL statement does not return a ResultSet object
      * */
-    public ResultSet executeQueryN(String statement, Object... values) throws SQLException {
-        try {
-            PreparedStatement stmt = getConnection().prepareStatement(statement);
+    public ResultSet executeQuery(String statement, Object... values) throws SQLException {
+        try (PreparedStatement stmt = getConnection().prepareStatement(statement)){
             for(int i = 0; i< values.length; i++) {
                 stmt.setObject(1+i, values[i]);
             }
+
             return stmt.executeQuery();
+        }catch (SQLException e) {
+            if(isReachable()){
+                throw e;
+            }else {
+                connect();
+                return executeQuery(statement, values);
+            }
+        }
+    }
+
+    /**
+     * <h3>SQLCommunicator#executeQueryN(String, Object...)</h3>
+     * @param statement an SQL statement that may contain one or more '?' IN parameter placeholders
+     * @param values values that can replace ? IN statement
+     * @return a ResultSet object that contains the data produced by the query; never null
+     * @throws SQLException if a database access error occurs; this method is called on a closed PreparedStatement or the SQL statement does not return a ResultSet object
+     * */
+    public Statement executeQueryN(String statement, Object... values) throws SQLException {
+        try {
+            PreparedStatement stmt = getConnection().prepareStatement(statement, Statement.RETURN_GENERATED_KEYS);
+            for(int i = 0; i< values.length; i++) {
+                stmt.setObject(1+i, values[i]);
+            }
+            stmt.execute();
+            return stmt;
         }catch (SQLException e) {
             if(isReachable()){
                 throw e;
@@ -71,13 +96,15 @@ public class SQLCommunicator {
         }
     }
 
+
+
     /**
      * <h3>SQLCommunicator#executeUpdateN(String, Object...)</h3>
      * @param statement an SQL statement that may contain one or more '?' IN parameter placeholders
      * @param values values that can replace ? IN statement
      * @return either (1) the row count for SQL Data Manipulation Language (DML) statements or (2) 0 for SQL statements that return nothing
      * */
-    public int executeUpdateN(String statement, Object... values) {
+    public int executeUpdate(String statement, Object... values) {
         try (PreparedStatement stmt = getConnection().prepareStatement(statement)){
             for(int i = 0; i< values.length; i++) {
                 stmt.setObject(1+i, values[i]);
@@ -89,7 +116,7 @@ public class SQLCommunicator {
                     throw new RuntimeException(e);
                 }else {
                     connect();
-                    return executeUpdateN(statement, values);
+                    return executeUpdate(statement, values);
                 }
             } catch (SQLException ex) {
                 throw new RuntimeException(ex);

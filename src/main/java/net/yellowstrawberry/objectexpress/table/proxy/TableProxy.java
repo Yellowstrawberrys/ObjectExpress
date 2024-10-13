@@ -26,7 +26,9 @@ public class TableProxy implements InvocationHandler {
         try {
             return proxiee.getClass().getDeclaredMethod(method.getName(), method.getParameterTypes()).invoke(proxiee, args);
         } catch (NoSuchMethodException e) {
-            System.out.println(method.getName());
+            String name = method.getName();
+            if(!name.startsWith("find")) throw new RuntimeException(e);
+            // TODO: DO IT
         } catch (InvocationTargetException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }

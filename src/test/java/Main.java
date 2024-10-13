@@ -7,7 +7,10 @@ public class Main {
 
         Main main = new Main();
         ox.registerTables(main);
-        main.aa();
+//        main.aa();
+        main.bb();
+
+        ox.shutdown();
     }
 
     private WowTable table;
@@ -19,5 +22,11 @@ public class Main {
     public void aa() {
         System.out.println(table);
         System.out.println(table.findAll().get(0).getAbb());
+    }
+
+    public void bb() {
+        Sexy sexy = new Sexy("wow");
+        table.save(sexy);
+        System.out.println(sexy.getId());
     }
 }

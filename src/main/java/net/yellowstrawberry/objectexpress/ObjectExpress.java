@@ -9,6 +9,9 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class ObjectExpress {
@@ -16,7 +19,9 @@ public class ObjectExpress {
     private final String targetPackage;
     private final boolean isSnake;
 
+    private final ScheduledExecutorService service = Executors.newSingleThreadScheduledExecutor();
     private final HashMap<Class<?>, Table<?,?>> proxies = new HashMap<>();
+    private final List<TableProxyClazz<?,?>> tableProxyClazzes = new ArrayList<>();
 
     public ObjectExpress(String url, String db, String user, String password, String targetPackage) {
         this(url, db, user, password, targetPackage, true);
@@ -36,6 +41,7 @@ public class ObjectExpress {
         this.isSnake = isSnake;
 
         findTables();
+        service.scheduleWithFixedDelay(() -> tableProxyClazzes.forEach(TableProxyClazz::cleanCache), 10, 10, TimeUnit.SECONDS);
     }
 
     public void registerTables(Object o) {
@@ -56,7 +62,9 @@ public class ObjectExpress {
     private void findTables() {
         findAllClasses().forEach(e -> {
             if(Arrays.asList(e.getInterfaces()).contains(Table.class) && !e.equals(Table.class)) {
-                proxies.put(e, (Table<?, ?>) TableProxy.as(e, new TableProxyClazz<>(this, e)));
+                TableProxyClazz<?,?> tpc = new TableProxyClazz<>(this, e);
+                tableProxyClazzes.add(tpc);
+                proxies.put(e, (Table<?, ?>) TableProxy.as(e, tpc));
             }
         });
     }
@@ -84,5 +92,9 @@ public class ObjectExpress {
 
     public SQLCommunicator getCommunicator() {
         return sql;
+    }
+
+    public void shutdown() {
+        service.shutdown();
     }
 }
