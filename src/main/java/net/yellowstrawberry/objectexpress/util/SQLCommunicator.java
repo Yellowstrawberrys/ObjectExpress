@@ -1,6 +1,7 @@
 package net.yellowstrawberry.objectexpress.util;
 
 import java.sql.*;
+import java.util.logging.Logger;
 
 public class SQLCommunicator {
 
@@ -55,7 +56,8 @@ public class SQLCommunicator {
      * @throws SQLException if a database access error occurs; this method is called on a closed PreparedStatement or the SQL statement does not return a ResultSet object
      * */
     public ResultSet executeQuery(String statement, Object... values) throws SQLException {
-        try (PreparedStatement stmt = getConnection().prepareStatement(statement)){
+        try {
+            PreparedStatement stmt = getConnection().prepareStatement(statement);
             for(int i = 0; i< values.length; i++) {
                 stmt.setObject(1+i, values[i]);
             }
@@ -126,7 +128,7 @@ public class SQLCommunicator {
 
     private void connect() {
         try {
-            System.out.println("Making connection with the database...");
+            Logger.getLogger("ObjectExpress").config("Making connection with the database...");
             Class.forName("org.mariadb.jdbc.Driver");
             connection = DriverManager.getConnection(
                     "jdbc:mariadb://"+host+"/"+database+"?connectTimeout=0&socketTimeout=0&autoReconnect=true",
@@ -136,7 +138,7 @@ public class SQLCommunicator {
         } catch (ClassNotFoundException | SQLException e) {
             throw new RuntimeException(e);
         } finally {
-            System.out.println("Success to make connection with the database!");
+            Logger.getLogger("ObjectExpress").config("Succeed to make connection with the database!");
         }
     }
 

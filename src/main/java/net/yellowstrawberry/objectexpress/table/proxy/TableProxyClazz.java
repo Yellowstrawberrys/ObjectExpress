@@ -6,6 +6,7 @@ import net.yellowstrawberry.objectexpress.param.entity.Id;
 import net.yellowstrawberry.objectexpress.param.entity.Transit;
 import net.yellowstrawberry.objectexpress.table.Table;
 import net.yellowstrawberry.objectexpress.table.proxy.obj.ObjectCache;
+import net.yellowstrawberry.objectexpress.util.ArrayUtils;
 import net.yellowstrawberry.objectexpress.util.StringUtils;
 
 import java.lang.reflect.Field;
@@ -24,19 +25,21 @@ public class TableProxyClazz<ID, T> implements Table<ID, T> {
     private final ObjectExpress express;
     private final Class<ID> idClazz;
     private final Class<T> tClazz;
-    private final String idField;
+    private final Field idField;
 
     private final String[] inserts;
     private final Field[] fields;
     private final Field[] autoFields;
 
+    @SuppressWarnings("unchecked")
     public TableProxyClazz(ObjectExpress express, Class<?> interfaze) {
         String tbn = interfaze.getName().endsWith("Table") ? interfaze.getName().substring(0, interfaze.getName().length() - 5) : interfaze.getName();
         this.tableName = express.isSnake() ? StringUtils.camelToSnake(tbn) : tbn;
         this.express = express;
         idClazz = (Class<ID>) ((ParameterizedType) interfaze.getGenericInterfaces()[0]).getActualTypeArguments()[0];
         tClazz = (Class<T>) ((ParameterizedType) interfaze.getGenericInterfaces()[0]).getActualTypeArguments()[1];
-        idField = Arrays.stream(tClazz.getDeclaredFields()).filter(f -> f.isAnnotationPresent(Id.class)).findFirst().orElseThrow().getName();
+        idField = Arrays.stream(tClazz.getDeclaredFields()).filter(f -> f.isAnnotationPresent(Id.class)).findFirst().orElseThrow();
+        idField.setAccessible(true);
         inserts = new String[]{"","","",""};
 
         List<Field> f = new ArrayList<>();
@@ -76,7 +79,7 @@ public class TableProxyClazz<ID, T> implements Table<ID, T> {
             return Optional.of(c.get());
         }
 
-        return loadFromSQL("SELECT * FROM `%s` WHERE `%s`=? LIMIT 1;".formatted(tableName, idField), id).stream().findAny();
+        return loadFromSQL("SELECT * FROM `%s` WHERE `%s`=? LIMIT 1;".formatted(tableName, express.isSnake()?StringUtils.camelToSnake(idField.getName()):idField.getName()), id).stream().findAny();
     }
 
     @Override
@@ -89,13 +92,29 @@ public class TableProxyClazz<ID, T> implements Table<ID, T> {
                 throw new RuntimeException(ex);
             }
         }).toArray();
-        Object[] b = new Object[a.length*2];
-        for(int i =0;i<a.length; i++) b[i] = b[a.length+i] = a[i];
+
+        Object id;
+        try {
+            id = idField.get(t);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+
+        if(id==null) {
+            Object[] b;
+            b = new Object[a.length*2];
+            for(int i =0;i<a.length; i++) b[i] = b[a.length+i] = a[i];
+            a = b;
+        }else {
+            a = ArrayUtils.concat(a, id);
+        }
+
+
 
         try (Statement stmt = express.getCommunicator().executeQueryN(
-                "INSERT INTO `%s` (%s) VALUES (%s) ON DUPLICATE KEY UPDATE %s;"
-                        .formatted(tableName, inserts[0], inserts[1], inserts[2]),
-                b
+                id==null?"INSERT INTO `%s` (%s) VALUES (%s) ON DUPLICATE KEY UPDATE %s;".formatted(tableName, inserts[0], inserts[1], inserts[2])
+                        :"UPDATE `%s` SET %s WHERE `%s`=?".formatted(tableName, inserts[2], express.isSnake()?StringUtils.camelToSnake(idField.getName()):idField.getName()),
+                a
         )){
 
             ResultSet set = stmt.getGeneratedKeys();
@@ -105,11 +124,13 @@ public class TableProxyClazz<ID, T> implements Table<ID, T> {
                     f.set(t, cast(f.getType(), set.getObject(".insert_"+(express.isSnake() ? StringUtils.camelToSnake(f.getName()) : f.getName()))));
                 }
 
-                data.put(cast(idClazz, set.getObject("insert_"+(express.isSnake()?StringUtils.camelToSnake(idField):idField))), ObjectCache.of(t, System.currentTimeMillis()));
+                data.put(cast(idClazz, set.getObject("insert_"+(express.isSnake()?StringUtils.camelToSnake(idField.getName()):idField.getName()))), ObjectCache.of(t, System.currentTimeMillis()));
                 return t;
             }
         }catch (SQLException | IllegalAccessException e) {
             throw new RuntimeException(e);
+        }catch (ClassCastException e) {
+            throw new RuntimeException("Error while casting class! (Does key of table `%s` has same type as type of field that has @Id annotation?)".formatted(tableName), e);
         }
         return null;
     }
@@ -130,12 +151,11 @@ public class TableProxyClazz<ID, T> implements Table<ID, T> {
     @Override
     public void delete(T t) {
         try {
-            tClazz.getField(idField).setAccessible(true);
             express.getCommunicator().executeUpdate(
                     "DELETE FROM `%s` WHERE `id`=?;".formatted(tableName),
-                    tClazz.getField(idField).get(t)
+                    idField.get(t)
             );
-        } catch (IllegalAccessException | NoSuchFieldException e) {
+        } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
@@ -148,16 +168,16 @@ public class TableProxyClazz<ID, T> implements Table<ID, T> {
         );
     }
 
+    @SuppressWarnings("unchecked")
     public void cleanCache() {
         Arrays.asList(data.entrySet().toArray()).forEach(e -> {
             if(System.currentTimeMillis()-((Map.Entry<ID, ObjectCache<T>>) e).getValue().getLastAccess() > 20_000) data.remove(((Map.Entry<ID, ObjectCache<T>>) e).getKey());
         });
     }
 
+    @SuppressWarnings("unchecked")
     public List<T> loadFromSQL(String query, Object... args) {
-        try {
-            ResultSet set = express.getCommunicator().executeQuery(query, args);
-
+        try (ResultSet set = express.getCommunicator().executeQuery(query, args)) {
             List<T> l = new ArrayList<>();
             while (set.next()) {
                 T t = tClazz.getDeclaredConstructor().newInstance();
